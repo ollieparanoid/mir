@@ -658,6 +658,11 @@ auto miral::BasicWindowManager::display_area_for(Window const& window) const -> 
 
     // If the window is not explicity attached to any area, find the area it overlaps most with
     Rectangle window_rect{window.top_left(), window.size()};
+    return display_area_for(window_rect);
+}
+
+auto miral::BasicWindowManager::display_area_for(Rectangle const& window_rect) const -> std::shared_ptr<DisplayArea>
+{
     int max_overlap_area = 0;
     int min_distance = INT_MAX;
     std::experimental::optional<std::shared_ptr<DisplayArea>> best_area;
@@ -1669,7 +1674,8 @@ auto miral::BasicWindowManager::place_new_surface(WindowSpecification parameters
     if (!parameters.state().is_set())
         parameters.state() = mir_window_state_restored;
 
-    auto const active_output_area = active_output();
+    auto const display_area = display_area_for({parameters.top_left().value(), parameters.size().value()});
+    auto const application_zone = display_area->application_zone.extents();
     auto const height = parameters.size().value().height.as_int();
 
     bool positioned = false;
@@ -1726,28 +1732,28 @@ auto miral::BasicWindowManager::place_new_surface(WindowSpecification parameters
 
     if (!positioned)
     {
-        auto centred = active_output_area.top_left
-                       + 0.5*(as_displacement(active_output_area.size) - as_displacement(parameters.size().value()))
-                       - DeltaY{(active_output_area.size.height.as_int()-height)/6};
+        auto centred = application_zone.top_left
+                       + 0.5*(as_displacement(application_zone.size) - as_displacement(parameters.size().value()))
+                       - DeltaY{(application_zone.size.height.as_int()-height)/6};
 
         switch (parameters.state().value())
         {
         case mir_window_state_fullscreen:
         case mir_window_state_maximized:
-            parameters.top_left() = active_output_area.top_left;
-            parameters.size() = active_output_area.size;
+            parameters.top_left() = application_zone.top_left;
+            parameters.size() = application_zone.size;
             break;
 
         case mir_window_state_vertmaximized:
-            centred.y = active_output_area.top_left.y;
+            centred.y = application_zone.top_left.y;
             parameters.top_left() = centred;
-            parameters.size() = Size{parameters.size().value().width, active_output_area.size.height};
+            parameters.size() = Size{parameters.size().value().width, application_zone.size.height};
             break;
 
         case mir_window_state_horizmaximized:
-            centred.x = active_output_area.top_left.x;
+            centred.x = application_zone.top_left.x;
             parameters.top_left() = centred;
-            parameters.size() = Size{active_output_area.size.width, parameters.size().value().height};
+            parameters.size() = Size{application_zone.size.width, parameters.size().value().height};
             break;
 
         default:
